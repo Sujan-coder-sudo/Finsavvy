@@ -7,7 +7,9 @@ from .models import Register
 from .forms import RegisterForm
 from django.contrib.auth.decorators import login_required
 from django.shortcuts import get_object_or_404
-
+from django.contrib.auth.decorators import login_required
+from django.contrib import messages
+from django.shortcuts import redirect
 def home(request):
     return render(request, "index.html")
 
@@ -64,25 +66,32 @@ def user_logout(request):
     messages.success(request, 'You have been logged out.')
     return redirect('login')
 
-@login_required
+
 # def detail(request):
 #     user_details = Register.objects.filter(email=request.user.email).first()  # Fetch user details based on email
 #     return render(request, "detail.html", {"user_details": user_details})
+
+
 
 @login_required
 def forminfo(request):
     if request.method == 'POST':
         form = RegisterForm(request.POST)
         if form.is_valid():
+            # Save the form without committing to the database yet
             register = form.save(commit=False)
-            # Ensure the user is logged in and has an email
+            
+            # Ensure the user is logged in and set the user field
             if request.user.is_authenticated:
-                register.email = request.user.email  # Link the form data to the logged-in user
+                register.user = request.user
+                register.email = request.user.email  # Use the user's email from the User model
+                register.save()  # Link the form data to the logged-in user
             else:
                 messages.error(request, "You must be logged in to submit this form.")
                 return redirect('login')  # Redirect to login if not authenticated
 
-            register.save()  # Save the instance to the database
+            # Now save the instance to the database
+            register.save()
             messages.success(request, "Form info submitted successfully!")
             return redirect('ai')  # Redirect to AI page after form submission
         else:
@@ -94,13 +103,14 @@ def forminfo(request):
     return render(request, 'forminfo.html', {'form': form})
 
 
+
 @login_required
 def user_details(request):
-    # Get the user's registration details using their email
     try:
-        register = Register.objects.get(email=request.user.email)
+        # Fetch the Register instance linked to the logged-in user
+        register = Register.objects.get(user=request.user)
     except Register.DoesNotExist:
-        messages.error(request, "No registration details found. Please fill the form.")
+        messages.error(request, "No registration details found. Please fill out the form.")
         return redirect('forminfo')  # Redirect to form if no details found
 
     return render(request, 'detail.html', {'register': register})
@@ -124,6 +134,8 @@ def update_user_details(request):
             return redirect('user_details')  # Redirect to the details page after update
     else:
         form = RegisterForm(instance=register)
+
+    return render(request, 'update.html', {'form': form})
 
     return render(request, 'update.html', {'form': form})
 
